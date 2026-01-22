@@ -11,6 +11,7 @@ import android.widget.RemoteViews
 import com.example.timerwidget.data.TimerRepository
 import com.example.timerwidget.model.TimerItem
 import com.example.timerwidget.model.TimerState
+import com.example.timerwidget.util.TimeFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,14 +20,12 @@ import kotlinx.coroutines.launch
 
 class TimerWidgetProvider : AppWidgetProvider() {
 
-    // Scope for running async repository calls
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        // Use goAsync() to keep the BroadcastReceiver alive while we fetch data
+        // Create a short-lived scope for this update cycle (prevents coroutine leaks)
+        val updateScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val pendingResult = goAsync()
 
-        scope.launch {
+        updateScope.launch {
             try {
                 val repository = TimerRepository(context)
                 val timers = repository.timers.first() // Fetch snapshot of data
@@ -47,32 +46,62 @@ class TimerWidgetProvider : AppWidgetProvider() {
         timers: List<TimerItem>
     ) {
         // 1. Determine State: Is there any active timer?
-        val activeTimer = timers.find { it.state == TimerState.RUNNING || it.state == TimerState.PAUSED }
+        val activeTimer = timers.find { it.state == TimerState.RUNNING || it.state == TimerState.PAUSED || it.state == TimerState.OVERRUN }
 
         val views = if (activeTimer != null) {
             // --- RENDER RUNNING STATE ---
             RemoteViews(context.packageName, R.layout.widget_running).apply {
-                // Set Time Text
-                setTextViewText(R.id.text_countdown, formatTime(activeTimer.currentDurationSec))
+                // Set Time Text using TimeFormatter
+                setTextViewText(R.id.text_countdown, TimeFormatter.format(activeTimer.currentDurationSec))
                 
-                // Stop Action
-                val stopIntent = Intent(context, TimerService::class.java).apply {
-                    action = TimerService.ACTION_STOP
-                    putExtra(TimerService.EXTRA_TIMER_ID, activeTimer.id)
+                // Pause/Resume Button (on the right side next to countdown)
+                val toggleAction = if (activeTimer.state == TimerState.RUNNING) {
+                    TimerService.ACTION_PAUSE
+                } else if (activeTimer.state == TimerState.PAUSED) {
+                    TimerService.ACTION_RESUME
+                } else {
+                    TimerService.ACTION_PAUSE // OVERRUN state can be paused too
                 }
-                setOnClickPendingIntent(R.id.btn_stop, PendingIntent.getService(
-                    context, activeTimer.id.hashCode(), stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                ))
-
-                // Toggle Pause/Resume on Text Click
-                val toggleAction = if (activeTimer.state == TimerState.RUNNING) TimerService.ACTION_PAUSE else TimerService.ACTION_RESUME
+                
                 val toggleIntent = Intent(context, TimerService::class.java).apply {
                     action = toggleAction
                     putExtra(TimerService.EXTRA_TIMER_ID, activeTimer.id)
                 }
-                setOnClickPendingIntent(R.id.text_countdown, PendingIntent.getService(
-                    context, activeTimer.id.hashCode() + 1, toggleIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                setOnClickPendingIntent(R.id.btn_pause, PendingIntent.getService(
+                    context, activeTimer.id.hashCode() + 1, toggleIntent, 
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 ))
+
+                // Toggle Pause/Resume on Text Click too
+                setOnClickPendingIntent(R.id.text_countdown, PendingIntent.getService(
+                    context, activeTimer.id.hashCode() + 2, toggleIntent, 
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                ))
+                
+                // Add Button -> Opens App (or could be Stop)
+                val addIntent = Intent(context, MainActivity::class.java)
+                setOnClickPendingIntent(R.id.btn_add_timer, PendingIntent.getActivity(
+                    context, 0, addIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                ))
+
+                // Show remaining idle timer below (if there's a second timer that's idle)
+                val idleTimer = timers.find { it.state == TimerState.IDLE }
+                if (idleTimer != null && idleTimer.id != activeTimer.id) {
+                    setViewVisibility(R.id.timer_slot_1, View.VISIBLE)
+                    setTextViewText(R.id.timer_slot_1, TimeFormatter.format(idleTimer.originalDurationSec))
+                    
+                    // Click to Start the idle timer
+                    val startIntent = Intent(context, TimerService::class.java).apply {
+                        action = TimerService.ACTION_START
+                        putExtra(TimerService.EXTRA_TIMER_ID, idleTimer.id)
+                    }
+                    setOnClickPendingIntent(R.id.timer_slot_1, PendingIntent.getService(
+                        context, idleTimer.id.hashCode(), startIntent, 
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    ))
+                } else {
+                    setViewVisibility(R.id.timer_slot_1, View.GONE)
+                }
             }
         } else {
             // --- RENDER IDLE STATE ---
@@ -83,11 +112,11 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     context, 0, addIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 ))
 
-                // Slot 1
+                // Slot 1 (First Timer)
                 if (timers.isNotEmpty()) {
                     val t1 = timers[0]
                     setViewVisibility(R.id.timer_slot_1, View.VISIBLE)
-                    setTextViewText(R.id.timer_slot_1, formatTime(t1.originalDurationSec))
+                    setTextViewText(R.id.timer_slot_1, TimeFormatter.format(t1.originalDurationSec))
                     
                     // Click to Start
                     val startIntent = Intent(context, TimerService::class.java).apply {
@@ -95,24 +124,26 @@ class TimerWidgetProvider : AppWidgetProvider() {
                         putExtra(TimerService.EXTRA_TIMER_ID, t1.id)
                     }
                     setOnClickPendingIntent(R.id.timer_slot_1, PendingIntent.getService(
-                        context, t1.id.hashCode(), startIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        context, t1.id.hashCode(), startIntent, 
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     ))
                 } else {
                     setViewVisibility(R.id.timer_slot_1, View.GONE)
                 }
 
-                // Slot 2
+                // Slot 2 (Second Timer, enforces max 2 shown)
                 if (timers.size > 1) {
                     val t2 = timers[1]
                     setViewVisibility(R.id.timer_slot_2, View.VISIBLE)
-                    setTextViewText(R.id.timer_slot_2, formatTime(t2.originalDurationSec))
+                    setTextViewText(R.id.timer_slot_2, TimeFormatter.format(t2.originalDurationSec))
                     
                     val startIntent = Intent(context, TimerService::class.java).apply {
                         action = TimerService.ACTION_START
                         putExtra(TimerService.EXTRA_TIMER_ID, t2.id)
                     }
                     setOnClickPendingIntent(R.id.timer_slot_2, PendingIntent.getService(
-                        context, t2.id.hashCode(), startIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        context, t2.id.hashCode(), startIntent, 
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     ))
                 } else {
                     setViewVisibility(R.id.timer_slot_2, View.GONE)
@@ -128,12 +159,5 @@ class TimerWidgetProvider : AppWidgetProvider() {
         }
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
-    }
-
-    // Simple Helper (or use your TimeFormatter class if accessible)
-    private fun formatTime(totalSeconds: Int): String {
-        val m = totalSeconds / 60
-        val s = totalSeconds % 60
-        return if (m > 0) String.format("%02dm %02ds", m, s) else String.format("%02ds", s)
     }
 }
