@@ -19,11 +19,11 @@ jobs:
           distribution: zulu
           java-version: '17'
 
+      # IMPORTANT: Do NOT auto-run sdkmanager --licenses
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 12266719
-          accept-android-sdk-licenses: true
           packages: |
             platform-tools
             platforms;android-33
@@ -33,7 +33,9 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        env:
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
