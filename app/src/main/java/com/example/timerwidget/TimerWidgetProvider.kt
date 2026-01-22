@@ -115,7 +115,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 // Slot 1 (First Timer)
                 if (timers.isNotEmpty()) {
                     val t1 = timers[0]
-                    setViewVisibility(R.id.timer_slot_1, View.VISIBLE)
+                    setViewVisibility(R.id.timer_slot_1_container, View.VISIBLE)
                     setTextViewText(R.id.timer_slot_1, TimeFormatter.format(t1.originalDurationSec))
                     
                     // Click to Start
@@ -123,30 +123,30 @@ class TimerWidgetProvider : AppWidgetProvider() {
                         action = TimerService.ACTION_START
                         putExtra(TimerService.EXTRA_TIMER_ID, t1.id)
                     }
-                    setOnClickPendingIntent(R.id.timer_slot_1, PendingIntent.getService(
+                    setOnClickPendingIntent(R.id.timer_slot_1_container, PendingIntent.getService(
                         context, t1.id.hashCode(), startIntent, 
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     ))
                 } else {
-                    setViewVisibility(R.id.timer_slot_1, View.GONE)
+                    setViewVisibility(R.id.timer_slot_1_container, View.GONE)
                 }
 
                 // Slot 2 (Second Timer, enforces max 2 shown)
                 if (timers.size > 1) {
                     val t2 = timers[1]
-                    setViewVisibility(R.id.timer_slot_2, View.VISIBLE)
+                    setViewVisibility(R.id.timer_slot_2_container, View.VISIBLE)
                     setTextViewText(R.id.timer_slot_2, TimeFormatter.format(t2.originalDurationSec))
                     
                     val startIntent = Intent(context, TimerService::class.java).apply {
                         action = TimerService.ACTION_START
                         putExtra(TimerService.EXTRA_TIMER_ID, t2.id)
                     }
-                    setOnClickPendingIntent(R.id.timer_slot_2, PendingIntent.getService(
+                    setOnClickPendingIntent(R.id.timer_slot_2_container, PendingIntent.getService(
                         context, t2.id.hashCode(), startIntent, 
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     ))
                 } else {
-                    setViewVisibility(R.id.timer_slot_2, View.GONE)
+                    setViewVisibility(R.id.timer_slot_2_container, View.GONE)
                 }
                 
                 // Empty State

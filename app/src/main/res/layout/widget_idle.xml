@@ -3,13 +3,13 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg_idle"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:padding="16dp">
 
     <!-- Header: Timer + Add Button -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp">
+        android:layout_marginBottom="20dp">
 
         <TextView
             android:layout_width="wrap_content"
@@ -29,31 +29,46 @@
             android:tint="#FEF7FF" />
     </RelativeLayout>
 
-    <!-- Timer Slot 1 -->
-    <TextView
-        android:id="@+id/timer_slot_1"
+    <!-- Timer Slot 1 - Rounded Card Button -->
+    <FrameLayout
+        android:id="@+id/timer_slot_1_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:gravity="center"
-        android:text="10m"
-        android:textColor="#FEF7FF"
-        android:textSize="48sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/timer_button_bg"
+        android:visibility="gone">
 
-    <!-- Timer Slot 2 -->
-    <TextView
-        android:id="@+id/timer_slot_2"
+        <TextView
+            android:id="@+id/timer_slot_1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="10m"
+            android:textColor="#FEF7FF"
+            android:textSize="40sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <!-- Timer Slot 2 - Rounded Card Button -->
+    <FrameLayout
+        android:id="@+id/timer_slot_2_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:gravity="center"
-        android:text="05m"
-        android:textColor="#FEF7FF"
-        android:textSize="48sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
+        android:background="@drawable/timer_button_bg"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/timer_slot_2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="05m"
+            android:textColor="#FEF7FF"
+            android:textSize="40sp"
+            android:textStyle="bold" />
+    </FrameLayout>
 
     <!-- Empty State -->
     <TextView
