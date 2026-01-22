@@ -12,12 +12,22 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
+// Single instance of DataStore
 private val Context.dataStore by preferencesDataStore(name = "timer_settings")
 
 class TimerRepository(private val context: Context) {
     private val gson = Gson()
     private val TIMERS_KEY = stringPreferencesKey("timers_list")
 
+    // --- 1. NEW: Expose the list of timers as a Flow (Observable) ---
+    val timers: Flow<List<TimerItem>> = context.dataStore.data
+        .map { preferences ->
+            val json = preferences[TIMERS_KEY] ?: "[]"
+            val type = object : TypeToken<MutableList<TimerItem>>() {}.type
+            gson.fromJson(json, type)
+        }
+
+    // --- 2. Existing: Add a new timer ---
     suspend fun addTimer(durationSec: Int) {
         context.dataStore.edit { preferences ->
             val json = preferences[TIMERS_KEY] ?: "[]"
@@ -32,11 +42,33 @@ class TimerRepository(private val context: Context) {
                 createdAt = System.currentTimeMillis()
             )
 
-            // Logic: Max 2 timers. Newest replaces oldest (Top of list).
+            // Logic: Max 2 timers. Newest replaces oldest (FIFO).
             if (list.size >= 2) list.removeAt(0)
             list.add(newTimer)
 
             preferences[TIMERS_KEY] = gson.toJson(list)
+        }
+    }
+
+    // --- 3. NEW: Update Timer State (Used by Service to Tick) ---
+    suspend fun updateTimerState(timerId: String, newState: TimerState, newTime: Int? = null) {
+        context.dataStore.edit { preferences ->
+            val json = preferences[TIMERS_KEY] ?: "[]"
+            val type = object : TypeToken<MutableList<TimerItem>>() {}.type
+            val list: MutableList<TimerItem> = gson.fromJson(json, type)
+
+            // Find and modify the specific timer
+            val index = list.indexOfFirst { it.id == timerId }
+            if (index != -1) {
+                val timer = list[index]
+                timer.state = newState
+                if (newTime != null) {
+                    timer.currentDurationSec = newTime
+                }
+                // Save back to list
+                list[index] = timer
+                preferences[TIMERS_KEY] = gson.toJson(list)
+            }
         }
     }
 }
