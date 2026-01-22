@@ -4,8 +4,11 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:8.2.2")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22")
+        // Upgrade to AGP 9.0.0 to support Gradle 9.3.0
+        classpath("com.android.tools.build:gradle:9.0.0")
+
+        // Upgrade Kotlin to match AGP 9.0 requirements
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.10")
     }
 }
 allprojects {
