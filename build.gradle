@@ -4,16 +4,26 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // Upgrade to AGP 9.0.0 to support Gradle 9.3.0
-        classpath("com.android.tools.build:gradle:9.0.0")
-
-        // Upgrade Kotlin to match AGP 9.0 requirements
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.10")
+        // AGP 8.5.1 (Stable)
+        classpath 'com.android.tools.build:gradle:8.5.1'
+        
+        // Kotlin 2.1.0
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0'
+        
+        // Compose Compiler 2.1.0
+        classpath 'org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.1.0'
     }
 }
+
+// --- ADD THIS BLOCK ---
 allprojects {
     repositories {
         google()
         mavenCentral()
     }
+}
+// ----------------------
+
+tasks.register('clean', Delete) {
+    delete rootProject.buildDir
 }
