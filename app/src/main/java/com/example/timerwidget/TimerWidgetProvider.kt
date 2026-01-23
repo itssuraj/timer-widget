@@ -54,14 +54,10 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 // Set Time Text using TimeFormatter
                 setTextViewText(R.id.text_countdown, TimeFormatter.format(activeTimer.currentDurationSec))
                 
-                // Set background shape based on timer state
-                if (activeTimer.state == TimerState.PAUSED) {
-                    // Use default pill shape when paused
-                    setBackgroundResource(R.id.timer_pill_container, R.drawable.widget_bg_idle)
-                } else {
-                    // Use extreme rounded pill for running and overrun
-                    setBackgroundResource(R.id.timer_pill_container, R.drawable.widget_bg_running)
-                }
+                // Background shape is handled in the layout - RemoteViews swaps between layouts automatically
+                // widget_running layout has extreme rounded pill (radius 100dp)
+                // widget_idle layout has default pill shape (radius 18dp)
+                // The shape changes when we swap from running to idle state
                 
                 // Toggle Button: Pause/Resume - set intent for the pill container and text
                 val toggleAction = if (activeTimer.state == TimerState.RUNNING) {

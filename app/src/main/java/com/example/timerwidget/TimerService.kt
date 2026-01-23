@@ -118,7 +118,11 @@ class TimerService : Service() {
             val resetTime = timer?.originalDurationSec ?: 0
             
             repository.updateTimerState(timerId, TimerState.IDLE, resetTime)
-     
+            updateWidgetUI()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+    }
 
     private fun resetTimer(timerId: String) {
         timerJob?.cancel()
@@ -130,10 +134,6 @@ class TimerService : Service() {
             
             repository.updateTimerState(timerId, TimerState.IDLE, resetTime)
             updateWidgetUI()
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        }
-    }       updateWidgetUI()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
