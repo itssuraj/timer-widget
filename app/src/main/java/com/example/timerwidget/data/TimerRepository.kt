@@ -1,9 +1,13 @@
 package com.example.timerwidget.data
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.timerwidget.TimerWidgetProvider
 import com.example.timerwidget.model.TimerItem
 import com.example.timerwidget.model.TimerState
 import com.google.gson.Gson
@@ -77,6 +81,9 @@ class TimerRepository(private val context: Context) {
 
             preferences[TIMERS_KEY] = gson.toJson(list)
         }
+        
+        // Notify the widget to update
+        notifyWidgetUpdate()
     }
 
     // --- 3. NEW: Update Timer State (Used by Service to Tick) ---
@@ -100,4 +107,16 @@ class TimerRepository(private val context: Context) {
             }
         }
     }
-}
+
+    // --- Notify widget to update ---
+    private fun notifyWidgetUpdate() {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, TimerWidgetProvider::class.java))
+        if (ids.isNotEmpty()) {
+            val intent = Intent(context, TimerWidgetProvider::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+            }
+            context.sendBroadcast(intent)
+        }
+    }

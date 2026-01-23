@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Header: Timer + Add Button -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Timer"
+            android:textColor="#FEF7FF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/btn_add_timer"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_alignParentEnd="true"
+            android:contentDescription="Add Timer"
+            android:src="@android:drawable/ic_input_add"
+            android:tint="#FEF7FF" />
+    </RelativeLayout>
+
+    <!-- Primary Timer (Active or First Idle) -->
+    <FrameLayout
+        android:id="@+id/primary_timer_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/widget_bg_idle">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/primary_timer_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:text="10m"
+                android:textColor="#FEF7FF"
+                android:textSize="40sp"
+                android:textStyle="bold" />
+
+            <!-- Reset/Stop Icon for Primary Timer -->
+            <ImageView
+                android:id="@+id/primary_timer_icon"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_toEndOf="@id/primary_timer_text"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="16dp"
+                android:contentDescription="Action"
+                android:src="@drawable/ic_reset"
+                android:tint="#FEF7FF"
+                android:visibility="gone" />
+        </RelativeLayout>
+    </FrameLayout>
+
+    <!-- Secondary Timer (Second Idle or Empty) -->
+    <FrameLayout
+        android:id="@+id/secondary_timer_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_bg_idle"
+        android:visibility="gone">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/secondary_timer_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:text="5m"
+                android:textColor="#FEF7FF"
+                android:textSize="40sp"
+                android:textStyle="bold" />
+        </RelativeLayout>
+    </FrameLayout>
+
+    <!-- Empty State -->
+    <TextView
+        android:id="@+id/text_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:text="No timers set"
+        android:textColor="#66FEF7FF"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+</LinearLayout>
