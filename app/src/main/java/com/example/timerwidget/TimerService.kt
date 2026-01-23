@@ -28,6 +28,7 @@ class TimerService : Service() {
         const val ACTION_PAUSE = "ACTION_PAUSE"
         const val ACTION_RESUME = "ACTION_RESUME"
         const val ACTION_STOP = "ACTION_STOP"
+        const val ACTION_RESET = "ACTION_RESET"
         const val EXTRA_TIMER_ID = "EXTRA_TIMER_ID"
         const val NOTIFICATION_ID = 1
         const val CHANNEL_ID = "TimerServiceChannel"
@@ -56,6 +57,10 @@ class TimerService : Service() {
             ACTION_STOP -> {
                 val timerId = intent.getStringExtra(EXTRA_TIMER_ID)
                 if (timerId != null) stopTimer(timerId)
+            }
+            ACTION_RESET -> {
+                val timerId = intent.getStringExtra(EXTRA_TIMER_ID)
+                if (timerId != null) resetTimer(timerId)
             }
         }
         return START_NOT_STICKY
@@ -113,7 +118,22 @@ class TimerService : Service() {
             val resetTime = timer?.originalDurationSec ?: 0
             
             repository.updateTimerState(timerId, TimerState.IDLE, resetTime)
+     
+
+    private fun resetTimer(timerId: String) {
+        timerJob?.cancel()
+        serviceScope.launch {
+            // Reset to original duration and IDLE state
+            val timers = repository.timers.first()
+            val timer = timers.find { it.id == timerId }
+            val resetTime = timer?.originalDurationSec ?: 0
+            
+            repository.updateTimerState(timerId, TimerState.IDLE, resetTime)
             updateWidgetUI()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+    }       updateWidgetUI()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }

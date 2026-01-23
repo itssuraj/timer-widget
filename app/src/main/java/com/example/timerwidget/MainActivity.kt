@@ -1,5 +1,7 @@
 package com.example.timerwidget
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -39,18 +41,146 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val repository = TimerRepository(this)
 
+        lifecycleScope.launch {
+            // Initialize preset timers on first launch
+            repository.ensureInitialized()
+        }
+
         setContent {
             MaterialTheme {
-                TimerEditorScreen(
-                    onTimerStart = { seconds ->
-                        lifecycleScope.launch {
-                            repository.addTimer(seconds)
-                            finish() // Close immediately after adding
-                        }
-                    }
+                // Check if widget is added
+                val widgetManager = AppWidgetManager.getInstance(this)
+                val widgetIds = widgetManager.getAppWidgetIds(
+                    ComponentName(this, TimerWidgetProvider::class.java)
                 )
+                val hasWidget = widgetIds.isNotEmpty()
+
+                if (hasWidget) {
+                    TimerEditorScreen(
+                        onTimerStart = { seconds ->
+                            lifecycleScope.launch {
+                                repository.addTimer(seconds)
+                                finish() // Close immediately after adding
+                            }
+                        }
+                    )
+                } else {
+                    AddWidgetDialog(
+                        onClose = { finish() }
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+fun AddWidgetDialog(onClose: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundDark),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .padding(32.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E1B20)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // Title
+                Text(
+                    text = "Add Widget First",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextActive
+                )
+
+                // Description
+                Text(
+                    text = "This is a widget-first app. Please add the Timer Widget to your home screen before creating custom timers.",
+                    fontSize = 14.sp,
+                    color = TextInactive,
+                    lineHeight = 20.sp
+                )
+
+                // Steps
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StepItem(number = "1", text = "Long-press on your home screen")
+                    StepItem(number = "2", text = "Tap \"Widgets\"")
+                    StepItem(number = "3", text = "Find and select \"Timer Widget\"")
+                    StepItem(number = "4", text = "Place it on your home screen")
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // OK Button
+                Button(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ButtonActive
+                    ),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Text(
+                        text = "OK",
+                        color = ButtonTextDark,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StepItem(number: String, text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Step number circle
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(ButtonActive),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = number,
+                color = ButtonTextDark,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Step text
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            color = TextInactive,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 

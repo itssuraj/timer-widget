@@ -29,54 +29,76 @@
             android:tint="#FEF7FF" />
     </RelativeLayout>
 
-    <!-- Main Countdown Timer with Pause Button -->
-    <RelativeLayout
+    <!-- Main Countdown Timer - Pill Shape Container -->
+    <FrameLayout
+        android:id="@+id/timer_pill_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:gravity="center">
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/widget_bg_running">
 
-        <TextView
-            android:id="@+id/text_countdown"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:text="09:59"
-            android:textColor="#FEF7FF"
-            android:textSize="56sp"
-            android:textStyle="bold" />
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center">
 
-        <!-- Pause/Resume Icon -->
-        <ImageView
-            android:id="@+id/btn_pause"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_toEndOf="@id/text_countdown"
-            android:layout_centerVertical="true"
-            android:layout_marginStart="12dp"
-            android:contentDescription="Pause"
-            android:src="@android:drawable/ic_media_pause"
-            android:tint="#FEF7FF" />
-    </RelativeLayout>
+            <TextView
+                android:id="@+id/text_countdown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:text="09:59"
+                android:textColor="#FEF7FF"
+                android:textSize="56sp"
+                android:textStyle="bold" />
 
-    <!-- Remaining Idle Timer Slot -->
-    <TextView
-        android:id="@+id/timer_slot_1"
+            <!-- Reset/Stop Icon (appears on running/paused/overrun) -->
+            <ImageView
+                android:id="@+id/btn_reset"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_toEndOf="@id/text_countdown"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="16dp"
+                android:contentDescription="Reset"
+                android:src="@drawable/ic_reset"
+                android:tint="#FEF7FF"
+                android:visibility="gone" />
+
+            <ImageView
+                android:id="@+id/btn_stop"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_toEndOf="@id/text_countdown"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="16dp"
+                android:contentDescription="Stop"
+                android:src="@drawable/ic_stop"
+                android:tint="#FEF7FF"
+                android:visibility="gone" />
+        </RelativeLayout>
+    </FrameLayout>
+
+    <!-- Remaining Idle Timer Slot - Default Pill Shape -->
+    <FrameLayout
+        android:id="@+id/timer_slot_1_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:text="5m"
-        android:textColor="#FEF7FF"
-        android:textSize="32sp"
-        android:textStyle="bold"
-        android:layout_marginTop="8dp"
-        android:visibility="gone" />
+        android:background="@drawable/widget_bg_idle"
+        android:visibility="gone">
 
-    <!-- Stop Button -->
-    <ImageView
-        android:id="@+id/btn_stop"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone" />
+        <TextView
+            android:id="@+id/timer_slot_1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="5m"
+            android:textColor="#FEF7FF"
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:paddingTop="20dp"
+            android:paddingBottom="20dp" />
+    </FrameLayout>
 
 </LinearLayout>

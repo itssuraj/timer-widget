@@ -29,14 +29,14 @@
             android:tint="#FEF7FF" />
     </RelativeLayout>
 
-    <!-- Timer Slot 1 - Rounded Card Button -->
+    <!-- Timer Slot 1 - Default Pill Shape Button -->
     <FrameLayout
         android:id="@+id/timer_slot_1_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:layout_marginBottom="12dp"
-        android:background="@drawable/timer_button_bg"
+        android:background="@drawable/widget_bg_idle"
         android:visibility="gone">
 
         <TextView
@@ -50,13 +50,13 @@
             android:textStyle="bold" />
     </FrameLayout>
 
-    <!-- Timer Slot 2 - Rounded Card Button -->
+    <!-- Timer Slot 2 - Default Pill Shape Button -->
     <FrameLayout
         android:id="@+id/timer_slot_2_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="@drawable/timer_button_bg"
+        android:background="@drawable/widget_bg_idle"
         android:visibility="gone">
 
         <TextView

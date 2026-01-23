@@ -18,6 +18,7 @@ private val Context.dataStore by preferencesDataStore(name = "timer_settings")
 class TimerRepository(private val context: Context) {
     private val gson = Gson()
     private val TIMERS_KEY = stringPreferencesKey("timers_list")
+    private val INITIALIZED_KEY = stringPreferencesKey("initialized")
 
     // --- 1. NEW: Expose the list of timers as a Flow (Observable) ---
     val timers: Flow<List<TimerItem>> = context.dataStore.data
@@ -26,6 +27,34 @@ class TimerRepository(private val context: Context) {
             val type = object : TypeToken<MutableList<TimerItem>>() {}.type
             gson.fromJson(json, type)
         }
+
+    // --- Initialize preset timers on first launch ---
+    suspend fun ensureInitialized() {
+        context.dataStore.edit { preferences ->
+            val isInitialized = preferences[INITIALIZED_KEY] == "true"
+            if (!isInitialized) {
+                val presetTimers = mutableListOf(
+                    TimerItem(
+                        id = UUID.randomUUID().toString(),
+                        originalDurationSec = 10 * 60, // 10 minutes
+                        currentDurationSec = 10 * 60,
+                        state = TimerState.IDLE,
+                        createdAt = System.currentTimeMillis()
+                    ),
+                    TimerItem(
+                        id = UUID.randomUUID().toString(),
+                        originalDurationSec = 5 * 60, // 5 minutes
+                        currentDurationSec = 5 * 60,
+                        state = TimerState.IDLE,
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+                
+                preferences[TIMERS_KEY] = gson.toJson(presetTimers)
+                preferences[INITIALIZED_KEY] = "true"
+            }
+        }
+    }
 
     // --- 2. Existing: Add a new timer ---
     suspend fun addTimer(durationSec: Int) {
