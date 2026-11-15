@@ -81,7 +81,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 // Primary timer (idle)
                 views.setTextViewText(R.id.primary_timer_text, TimeFormatter.formatDuration(timer.originalDurationSec))
                 views.setTextColor(R.id.primary_timer_text, android.graphics.Color.parseColor("#B3FEF7FF"))
-                views.setBackgroundResource(R.id.primary_timer_container, R.drawable.widget_bg_idle)
+                views.setInt(R.id.primary_timer_container, "setBackgroundResource", R.drawable.widget_bg_idle)
                 views.setViewVisibility(R.id.primary_timer_icon, View.GONE)
 
                 // Click to start
@@ -110,7 +110,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 // Primary timer
                 views.setTextViewText(R.id.primary_timer_text, TimeFormatter.formatDuration(timer1.originalDurationSec))
                 views.setTextColor(R.id.primary_timer_text, android.graphics.Color.parseColor("#B3FEF7FF"))
-                views.setBackgroundResource(R.id.primary_timer_container, R.drawable.widget_bg_idle)
+                views.setInt(R.id.primary_timer_container, "setBackgroundResource", R.drawable.widget_bg_idle)
                 views.setViewVisibility(R.id.primary_timer_icon, View.GONE)
 
                 val startIntent1 = Intent(context, TimerService::class.java).apply {
@@ -157,7 +157,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 } else {
                     R.drawable.widget_bg_running
                 }
-                views.setBackgroundResource(R.id.primary_timer_container, bgRes)
+                views.setInt(R.id.primary_timer_container, "setBackgroundResource", bgRes)
 
                 // Set up toggle action (play/pause)
                 val toggleAction = when (activeTimer.state) {
