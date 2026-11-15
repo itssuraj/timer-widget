@@ -81,8 +81,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
         val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
         val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
-        // 1x1 widget typically reports dimensions between 40dp and 110dp
-        val isSmall = (minWidth in 1..110) || (minHeight in 1..110)
+        // 1x1 widget cell is typically < 85dp; 2x2 or larger is >= 110dp
+        val isSmall = (minWidth in 1..85) || (minHeight in 1..85)
 
         if (timers.isEmpty()) {
             views.setViewVisibility(R.id.text_empty, View.VISIBLE)
@@ -112,7 +112,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 iconId = R.id.primary_timer_icon,
                 timer = timerToShow,
                 context = context,
-                slotIndex = 0
+                slotIndex = 0,
+                isSmall = true
             )
         } else {
             // --- 2x2+ FULL MODE (Permanent Fixed Positions) ---
@@ -127,7 +128,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 iconId = R.id.primary_timer_icon,
                 timer = timers[0],
                 context = context,
-                slotIndex = 0
+                slotIndex = 0,
+                isSmall = false
             )
 
             // Slot 2: ALWAYS timers[1] (if present)
@@ -139,7 +141,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     iconId = R.id.secondary_timer_icon,
                     timer = timers[1],
                     context = context,
-                    slotIndex = 1
+                    slotIndex = 1,
+                    isSmall = false
                 )
             } else {
                 views.setViewVisibility(R.id.secondary_timer_container, View.GONE)
@@ -156,9 +159,16 @@ class TimerWidgetProvider : AppWidgetProvider() {
         iconId: Int,
         timer: TimerItem,
         context: Context,
-        slotIndex: Int
+        slotIndex: Int,
+        isSmall: Boolean = false
     ) {
         views.setViewVisibility(containerId, View.VISIBLE)
+
+        if (isSmall) {
+            views.setTextViewTextSize(textId, android.util.TypedValue.COMPLEX_UNIT_SP, 18f)
+        } else {
+            views.setTextViewTextSize(textId, android.util.TypedValue.COMPLEX_UNIT_SP, 24f)
+        }
 
         val baseReqCode = (timer.id.hashCode() * 10) + slotIndex
 
@@ -181,20 +191,24 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     )
                 )
 
-                // Reset icon visible
-                views.setViewVisibility(iconId, View.VISIBLE)
-                views.setImageViewResource(iconId, R.drawable.ic_reset)
-                val resetIntent = Intent(context, TimerService::class.java).apply {
-                    action = TimerService.ACTION_RESET
-                    putExtra(TimerService.EXTRA_TIMER_ID, timer.id)
-                }
-                views.setOnClickPendingIntent(
-                    iconId,
-                    PendingIntent.getForegroundService(
-                        context, baseReqCode + 2, resetIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                // Reset icon visible only in full mode
+                if (isSmall) {
+                    views.setViewVisibility(iconId, View.GONE)
+                } else {
+                    views.setViewVisibility(iconId, View.VISIBLE)
+                    views.setImageViewResource(iconId, R.drawable.ic_reset)
+                    val resetIntent = Intent(context, TimerService::class.java).apply {
+                        action = TimerService.ACTION_RESET
+                        putExtra(TimerService.EXTRA_TIMER_ID, timer.id)
+                    }
+                    views.setOnClickPendingIntent(
+                        iconId,
+                        PendingIntent.getForegroundService(
+                            context, baseReqCode + 2, resetIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
                     )
-                )
+                }
             }
             TimerState.PAUSED -> {
                 views.setTextViewText(textId, TimeFormatter.format(timer.currentDurationSec))
@@ -214,20 +228,24 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     )
                 )
 
-                // Reset icon visible
-                views.setViewVisibility(iconId, View.VISIBLE)
-                views.setImageViewResource(iconId, R.drawable.ic_reset)
-                val resetIntent = Intent(context, TimerService::class.java).apply {
-                    action = TimerService.ACTION_RESET
-                    putExtra(TimerService.EXTRA_TIMER_ID, timer.id)
-                }
-                views.setOnClickPendingIntent(
-                    iconId,
-                    PendingIntent.getForegroundService(
-                        context, baseReqCode + 2, resetIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                // Reset icon visible only in full mode
+                if (isSmall) {
+                    views.setViewVisibility(iconId, View.GONE)
+                } else {
+                    views.setViewVisibility(iconId, View.VISIBLE)
+                    views.setImageViewResource(iconId, R.drawable.ic_reset)
+                    val resetIntent = Intent(context, TimerService::class.java).apply {
+                        action = TimerService.ACTION_RESET
+                        putExtra(TimerService.EXTRA_TIMER_ID, timer.id)
+                    }
+                    views.setOnClickPendingIntent(
+                        iconId,
+                        PendingIntent.getForegroundService(
+                            context, baseReqCode + 2, resetIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
                     )
-                )
+                }
             }
             TimerState.OVERRUN -> {
                 views.setTextViewText(textId, TimeFormatter.format(timer.currentDurationSec))
@@ -247,20 +265,24 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     )
                 )
 
-                // Stop icon visible
-                views.setViewVisibility(iconId, View.VISIBLE)
-                views.setImageViewResource(iconId, R.drawable.ic_stop)
-                val stopIntent = Intent(context, TimerService::class.java).apply {
-                    action = TimerService.ACTION_STOP
-                    putExtra(TimerService.EXTRA_TIMER_ID, timer.id)
-                }
-                views.setOnClickPendingIntent(
-                    iconId,
-                    PendingIntent.getForegroundService(
-                        context, baseReqCode + 3, stopIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                // Stop icon visible only in full mode
+                if (isSmall) {
+                    views.setViewVisibility(iconId, View.GONE)
+                } else {
+                    views.setViewVisibility(iconId, View.VISIBLE)
+                    views.setImageViewResource(iconId, R.drawable.ic_stop)
+                    val stopIntent = Intent(context, TimerService::class.java).apply {
+                        action = TimerService.ACTION_STOP
+                        putExtra(TimerService.EXTRA_TIMER_ID, timer.id)
+                    }
+                    views.setOnClickPendingIntent(
+                        iconId,
+                        PendingIntent.getForegroundService(
+                            context, baseReqCode + 3, stopIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
                     )
-                )
+                }
             }
             TimerState.IDLE -> {
                 views.setTextViewText(textId, TimeFormatter.formatDuration(timer.originalDurationSec))
