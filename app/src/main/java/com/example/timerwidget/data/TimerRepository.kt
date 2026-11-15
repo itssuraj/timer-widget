@@ -24,39 +24,68 @@ class TimerRepository(private val context: Context) {
     private val TIMERS_KEY = stringPreferencesKey("timers_list")
     private val INITIALIZED_KEY = stringPreferencesKey("initialized")
 
+    companion object {
+        fun getDefaultTimers(): List<TimerItem> {
+            return listOf(
+                TimerItem(
+                    id = "default_timer_10m",
+                    originalDurationSec = 10 * 60, // 10 minutes
+                    currentDurationSec = 10 * 60,
+                    state = TimerState.IDLE,
+                    createdAt = 1000L
+                ),
+                TimerItem(
+                    id = "default_timer_5m",
+                    originalDurationSec = 5 * 60, // 5 minutes
+                    currentDurationSec = 5 * 60,
+                    state = TimerState.IDLE,
+                    createdAt = 2000L
+                )
+            )
+        }
+    }
+
     // --- 1. NEW: Expose the list of timers as a Flow (Observable) ---
     val timers: Flow<List<TimerItem>> = context.dataStore.data
         .map { preferences ->
-            val json = preferences[TIMERS_KEY] ?: "[]"
-            val type = object : TypeToken<MutableList<TimerItem>>() {}.type
-            gson.fromJson(json, type)
+            val json = preferences[TIMERS_KEY]
+            if (json == null) {
+                getDefaultTimers()
+            } else {
+                val type = object : TypeToken<MutableList<TimerItem>>() {}.type
+                try {
+                    val list: List<TimerItem> = gson.fromJson(json, type) ?: emptyList()
+                    if (list.isEmpty()) getDefaultTimers() else list
+                } catch (e: Exception) {
+                    getDefaultTimers()
+                }
+            }
         }
 
     // --- Initialize preset timers on first launch ---
     suspend fun ensureInitialized() {
+        var didInit = false
         context.dataStore.edit { preferences ->
-            val isInitialized = preferences[INITIALIZED_KEY] == "true"
-            if (!isInitialized) {
-                val presetTimers = mutableListOf(
-                    TimerItem(
-                        id = UUID.randomUUID().toString(),
-                        originalDurationSec = 10 * 60, // 10 minutes
-                        currentDurationSec = 10 * 60,
-                        state = TimerState.IDLE,
-                        createdAt = System.currentTimeMillis()
-                    ),
-                    TimerItem(
-                        id = UUID.randomUUID().toString(),
-                        originalDurationSec = 5 * 60, // 5 minutes
-                        currentDurationSec = 5 * 60,
-                        state = TimerState.IDLE,
-                        createdAt = System.currentTimeMillis()
-                    )
-                )
-                
-                preferences[TIMERS_KEY] = gson.toJson(presetTimers)
-                preferences[INITIALIZED_KEY] = "true"
+            val json = preferences[TIMERS_KEY]
+            val type = object : TypeToken<MutableList<TimerItem>>() {}.type
+            val currentList: List<TimerItem> = if (json != null) {
+                try {
+                    gson.fromJson(json, type) ?: emptyList()
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            } else {
+                emptyList()
             }
+
+            if (currentList.isEmpty()) {
+                preferences[TIMERS_KEY] = gson.toJson(getDefaultTimers())
+                preferences[INITIALIZED_KEY] = "true"
+                didInit = true
+            }
+        }
+        if (didInit) {
+            notifyWidgetUpdate()
         }
     }
 
@@ -64,9 +93,21 @@ class TimerRepository(private val context: Context) {
     suspend fun addTimer(durationSec: Int): String {
         var createdTimerId = ""
         context.dataStore.edit { preferences ->
-            val json = preferences[TIMERS_KEY] ?: "[]"
+            val json = preferences[TIMERS_KEY]
             val type = object : TypeToken<MutableList<TimerItem>>() {}.type
-            val list: MutableList<TimerItem> = gson.fromJson(json, type)
+            val list: MutableList<TimerItem> = if (json != null) {
+                try {
+                    gson.fromJson(json, type) ?: getDefaultTimers().toMutableList()
+                } catch (e: Exception) {
+                    getDefaultTimers().toMutableList()
+                }
+            } else {
+                getDefaultTimers().toMutableList()
+            }
+
+            if (list.isEmpty()) {
+                list.addAll(getDefaultTimers())
+            }
 
             val id = UUID.randomUUID().toString()
             createdTimerId = id
@@ -91,6 +132,7 @@ class TimerRepository(private val context: Context) {
             list.add(newTimer)
 
             preferences[TIMERS_KEY] = gson.toJson(list)
+            preferences[INITIALIZED_KEY] = "true"
         }
         
         // Notify the widget to update
@@ -130,7 +172,7 @@ class TimerRepository(private val context: Context) {
     }
 
     // --- Notify widget to update ---
-    private fun notifyWidgetUpdate() {
+    fun notifyWidgetUpdate() {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, TimerWidgetProvider::class.java))
         if (ids.isNotEmpty()) {

@@ -20,6 +20,15 @@ import kotlinx.coroutines.launch
 
 class TimerWidgetProvider : AppWidgetProvider() {
 
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        val updateScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        updateScope.launch {
+            val repository = TimerRepository(context)
+            repository.ensureInitialized()
+        }
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         val updateScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val pendingResult = goAsync()
@@ -27,6 +36,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
         updateScope.launch {
             try {
                 val repository = TimerRepository(context)
+                repository.ensureInitialized()
                 val timers = repository.timers.first()
 
                 for (appWidgetId in appWidgetIds) {
@@ -51,6 +61,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
         updateScope.launch {
             try {
                 val repository = TimerRepository(context)
+                repository.ensureInitialized()
                 val timers = repository.timers.first()
                 updateWidget(context, appWidgetManager, appWidgetId, timers)
             } finally {
