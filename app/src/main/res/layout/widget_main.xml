@@ -11,6 +11,7 @@
 
     <!-- Header: Timer + Add Button -->
     <RelativeLayout
+        android:id="@+id/header_container"
         android:layout_width="match_parent"
         android:layout_height="36dp"
         android:paddingStart="12dp"
@@ -38,7 +39,7 @@
             android:tint="#B3FEF7FF" />
     </RelativeLayout>
 
-    <!-- Primary Timer Container -->
+    <!-- Primary Timer Container (Slot 1) -->
     <FrameLayout
         android:id="@+id/primary_timer_container"
         android:layout_width="match_parent"
@@ -77,7 +78,7 @@
         </RelativeLayout>
     </FrameLayout>
 
-    <!-- Secondary Timer Container -->
+    <!-- Secondary Timer Container (Slot 2) -->
     <FrameLayout
         android:id="@+id/secondary_timer_container"
         android:layout_width="match_parent"
@@ -99,6 +100,20 @@
                 android:textColor="#B3FEF7FF"
                 android:textSize="28sp"
                 android:fontFamily="sans-serif" />
+
+            <!-- Reset/Restart Icon for Secondary Timer -->
+            <ImageView
+                android:id="@+id/secondary_timer_icon"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="16dp"
+                android:padding="6dp"
+                android:contentDescription="Reset"
+                android:src="@drawable/ic_reset"
+                android:tint="#B3FEF7FF"
+                android:visibility="gone" />
         </RelativeLayout>
     </FrameLayout>
 
