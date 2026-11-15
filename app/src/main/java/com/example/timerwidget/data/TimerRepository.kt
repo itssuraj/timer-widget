@@ -60,23 +60,34 @@ class TimerRepository(private val context: Context) {
         }
     }
 
-    // --- 2. Existing: Add a new timer ---
-    suspend fun addTimer(durationSec: Int) {
+    // --- 2. Add a new timer ---
+    suspend fun addTimer(durationSec: Int): String {
+        var createdTimerId = ""
         context.dataStore.edit { preferences ->
             val json = preferences[TIMERS_KEY] ?: "[]"
             val type = object : TypeToken<MutableList<TimerItem>>() {}.type
             val list: MutableList<TimerItem> = gson.fromJson(json, type)
 
+            val id = UUID.randomUUID().toString()
+            createdTimerId = id
             val newTimer = TimerItem(
-                id = UUID.randomUUID().toString(),
+                id = id,
                 originalDurationSec = durationSec,
                 currentDurationSec = durationSec,
                 state = TimerState.IDLE,
                 createdAt = System.currentTimeMillis()
             )
 
-            // Logic: Max 2 timers. Newest replaces oldest (FIFO).
-            if (list.size >= 2) list.removeAt(0)
+            // Logic: Max 2 timers.
+            // When full, replace an idle timer first to avoid terminating an active countdown.
+            if (list.size >= 2) {
+                val idleIndex = list.indexOfFirst { it.state == TimerState.IDLE }
+                if (idleIndex != -1) {
+                    list.removeAt(idleIndex)
+                } else {
+                    list.removeAt(0)
+                }
+            }
             list.add(newTimer)
 
             preferences[TIMERS_KEY] = gson.toJson(list)
@@ -84,14 +95,24 @@ class TimerRepository(private val context: Context) {
         
         // Notify the widget to update
         notifyWidgetUpdate()
+        return createdTimerId
     }
 
-    // --- 3. NEW: Update Timer State (Used by Service to Tick) ---
+    // --- 3. Update Timer State (Used by Service to Tick) ---
     suspend fun updateTimerState(timerId: String, newState: TimerState, newTime: Int? = null) {
         context.dataStore.edit { preferences ->
             val json = preferences[TIMERS_KEY] ?: "[]"
             val type = object : TypeToken<MutableList<TimerItem>>() {}.type
             val list: MutableList<TimerItem> = gson.fromJson(json, type)
+
+            // Ensure only one timer is in RUNNING/OVERRUN state at a time
+            if (newState == TimerState.RUNNING) {
+                for (item in list) {
+                    if (item.id != timerId && (item.state == TimerState.RUNNING || item.state == TimerState.OVERRUN)) {
+                        item.state = TimerState.PAUSED
+                    }
+                }
+            }
 
             // Find and modify the specific timer
             val index = list.indexOfFirst { it.id == timerId }

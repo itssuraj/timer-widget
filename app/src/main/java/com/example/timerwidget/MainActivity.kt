@@ -2,6 +2,9 @@ package com.example.timerwidget
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,14 +14,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -29,12 +32,13 @@ import androidx.lifecycle.lifecycleScope
 import com.example.timerwidget.data.TimerRepository
 import kotlinx.coroutines.launch
 
-// --- Design System Colors (From Blueprint) ---
+// --- Design System Colors (From Figma) ---
 val BackgroundDark = Color(0xFF121212)
+val SurfaceDark = Color(0xFF161618)
+val KeypadButtonDark = Color(0xFF202429)
 val TextActive = Color(0xFFFEF7FF).copy(alpha = 0.90f)
-val TextInactive = Color(0xFFFEF7FF).copy(alpha = 0.40f)
-val ButtonActive = Color(0xFFD0BCFF) // Light Purple
-val ButtonTextDark = Color(0xFF381E72)
+val TextInactive = Color(0xFFFEF7FF).copy(alpha = 0.70f)
+val SurfaceWhite = Color(0xFFFEF7FF)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,9 +50,16 @@ class MainActivity : ComponentActivity() {
             repository.ensureInitialized()
         }
 
+        // Request notification permission on Android 13+ (API 33+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
         setContent {
             MaterialTheme {
-                // Check if widget is added
+                // Check if widget is added to home screen
                 val widgetManager = AppWidgetManager.getInstance(this)
                 val widgetIds = widgetManager.getAppWidgetIds(
                     ComponentName(this, TimerWidgetProvider::class.java)
@@ -59,10 +70,17 @@ class MainActivity : ComponentActivity() {
                     TimerEditorScreen(
                         onTimerStart = { seconds ->
                             lifecycleScope.launch {
-                                repository.addTimer(seconds)
-                                finish() // Close immediately after adding
+                                val newTimerId = repository.addTimer(seconds)
+                                // Start timer immediately upon pressing Play
+                                val startIntent = Intent(this@MainActivity, TimerService::class.java).apply {
+                                    action = TimerService.ACTION_START
+                                    putExtra(TimerService.EXTRA_TIMER_ID, newTimerId)
+                                }
+                                startForegroundService(startIntent)
+                                finish()
                             }
-                        }
+                        },
+                        onClose = { finish() }
                     )
                 } else {
                     AddWidgetDialog(
@@ -86,22 +104,21 @@ fun AddWidgetDialog(onClose: () -> Unit) {
             modifier = Modifier
                 .padding(32.dp)
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1E1B20)
+                containerColor = SurfaceDark
             )
         ) {
             Column(
-                modifier = Modifier
-                    .padding(32.dp),
+                modifier = Modifier.padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 // Title
                 Text(
                     text = "Add Widget First",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Medium,
                     color = TextActive
                 )
 
@@ -117,7 +134,7 @@ fun AddWidgetDialog(onClose: () -> Unit) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     StepItem(number = "1", text = "Long-press on your home screen")
@@ -126,7 +143,7 @@ fun AddWidgetDialog(onClose: () -> Unit) {
                     StepItem(number = "4", text = "Place it on your home screen")
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
 
                 // OK Button
                 Button(
@@ -135,13 +152,13 @@ fun AddWidgetDialog(onClose: () -> Unit) {
                         .fillMaxWidth()
                         .height(48.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ButtonActive
+                        containerColor = SurfaceWhite
                     ),
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Text(
                         text = "OK",
-                        color = ButtonTextDark,
+                        color = BackgroundDark,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -158,23 +175,21 @@ fun StepItem(number: String, text: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Step number circle
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(28.dp)
                 .clip(CircleShape)
-                .background(ButtonActive),
+                .background(KeypadButtonDark),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = number,
-                color = ButtonTextDark,
-                fontSize = 14.sp,
+                color = TextActive,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        // Step text
         Text(
             text = text,
             fontSize = 14.sp,
@@ -185,10 +200,13 @@ fun StepItem(number: String, text: String) {
 }
 
 @Composable
-fun TimerEditorScreen(onTimerStart: (Int) -> Unit) {
-    var input by remember { mutableStateOf("") }
-    
-    // Convert input "123" -> 1m 23s -> 83 seconds
+fun TimerEditorScreen(
+    onTimerStart: (Int) -> Unit,
+    onClose: () -> Unit
+) {
+    var input by rememberSaveable { mutableStateOf("") }
+
+    // Convert input digits e.g. "123" -> 1m 23s -> 83 seconds
     val totalSeconds = remember(input) {
         val padded = input.padStart(6, '0')
         val h = padded.substring(0, 2).toInt()
@@ -196,52 +214,175 @@ fun TimerEditorScreen(onTimerStart: (Int) -> Unit) {
         val s = padded.substring(4, 6).toInt()
         (h * 3600) + (m * 60) + s
     }
-    
-    val isValid = totalSeconds >= 10 // Minimum 10s rule
+
+    val isValid = totalSeconds >= 10 // Minimum 10 seconds
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundDark)
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // --- 1. Top Bar (Close) ---
-        // (Optional: If design has a close button top-left, add it here. PDF shows X at bottom-right of keypad)
-        Spacer(Modifier.height(20.dp))
+        // --- 1. Top App Bar ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Timer",
+                fontSize = 22.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Normal,
+                color = TextInactive
+            )
+        }
 
         // --- 2. Time Display (00h 00m 00s) ---
-        TimeDisplay(input)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            TimeDisplay(input)
+        }
 
-        // --- 3. Keypad & Action ---
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            KeypadGrid(
-                onDigitClick = { digit -> if (input.length < 6) input += digit },
-                onDeleteClick = { if (input.isNotEmpty()) input = input.dropLast(1) }
+        // --- 3. Keypad & Actions Grid ---
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Rows 1-3: Number keypad (1-9)
+            val digitRows = listOf(
+                listOf("1", "2", "3"),
+                listOf("4", "5", "6"),
+                listOf("7", "8", "9")
             )
-            
-            Spacer(Modifier.height(16.dp))
 
-            // Start Button
-            Button(
-                onClick = { onTimerStart(totalSeconds) },
-                enabled = isValid,
+            digitRows.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    row.forEach { digit ->
+                        DigitButton(
+                            text = digit,
+                            onClick = {
+                                if (input.length < 6) input += digit
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Row 4: "00", "0", and Backspace
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DigitButton(
+                    text = "00",
+                    onClick = {
+                        if (input.length <= 4 && input.isNotEmpty()) input += "00"
+                    }
+                )
+                DigitButton(
+                    text = "0",
+                    onClick = {
+                        if (input.length < 6 && input.isNotEmpty()) input += "0"
+                    }
+                )
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(KeypadButtonDark)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (input.isNotEmpty()) input = input.dropLast(1)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_backspace),
+                        contentDescription = "Delete",
+                        tint = if (input.isNotEmpty()) TextActive else TextInactive,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+
+            // Row 5: Action Row (Close, Play, Spacer)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ButtonActive,
-                    disabledContainerColor = Color(0xFF2B2930) // Darker gray for disabled
-                ),
-                shape = RoundedCornerShape(28.dp)
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Timer",
-                    color = if (isValid) ButtonTextDark else TextInactive,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                // Column 1: Close Button (45dp circle centered in 80dp cell)
+                Box(
+                    modifier = Modifier.size(80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(45.dp)
+                            .clip(CircleShape)
+                            .background(KeypadButtonDark)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                onClose()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_close),
+                            contentDescription = "Close",
+                            tint = TextActive,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                // Column 2: Play / Start Button (80dp circle)
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(if (isValid) SurfaceWhite else KeypadButtonDark)
+                        .clickable(
+                            enabled = isValid,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onTimerStart(totalSeconds)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_play_arrow),
+                        contentDescription = "Start Timer",
+                        tint = if (isValid) BackgroundDark else TextInactive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // Column 3: Placeholder spacer to maintain alignment
+                Spacer(modifier = Modifier.size(80.dp))
             }
         }
     }
@@ -254,15 +395,8 @@ fun TimeDisplay(input: String) {
     val mm = padded.substring(2, 4)
     val ss = padded.substring(4, 6)
 
-    // Helper to determine if a segment is "active" (has non-zero numbers typed)
-    // For simplicity in this widget editor, we just light up typed numbers
-    // But the design shows 00h 10m 00s where 10 is white, others gray.
-    
-    // Simple logic: If we have input, highlight relevant parts? 
-    // Actually, "Active" design shows white text for valid numbers. 
-    // Let's color strict based on input length.
+    // Highlight segments based on typed input
     val len = input.length
-    
     val hColor = if (len > 4) TextActive else TextInactive
     val mColor = if (len > 2) TextActive else TextInactive
     val sColor = if (len > 0) TextActive else TextInactive
@@ -270,71 +404,43 @@ fun TimeDisplay(input: String) {
     Text(
         text = buildAnnotatedString {
             withStyle(SpanStyle(color = hColor)) { append(hh) }
-            withStyle(SpanStyle(color = TextInactive, fontSize = 24.sp)) { append("h ") }
-            
+            withStyle(SpanStyle(color = hColor, fontSize = 25.sp)) { append("h ") }
+
             withStyle(SpanStyle(color = mColor)) { append(mm) }
-            withStyle(SpanStyle(color = TextInactive, fontSize = 24.sp)) { append("m ") }
-            
+            withStyle(SpanStyle(color = mColor, fontSize = 25.sp)) { append("m ") }
+
             withStyle(SpanStyle(color = sColor)) { append(ss) }
-            withStyle(SpanStyle(color = TextInactive, fontSize = 24.sp)) { append("s") }
+            withStyle(SpanStyle(color = sColor, fontSize = 25.sp)) { append("s") }
         },
-        fontSize = 52.sp,
-        fontWeight = FontWeight.Light,
-        letterSpacing = 2.sp
+        fontSize = 50.sp,
+        fontWeight = FontWeight.Normal,
+        letterSpacing = 1.sp
     )
 }
 
 @Composable
-fun KeypadGrid(onDigitClick: (String) -> Unit, onDeleteClick: () -> Unit) {
-    val keys = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9"),
-        listOf("00", "0", "DEL") // Matches design row 4
-    )
-
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        keys.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                row.forEach { key ->
-                    KeypadButton(key, onDigitClick, onDeleteClick)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun KeypadButton(key: String, onDigitClick: (String) -> Unit, onDeleteClick: () -> Unit) {
+fun DigitButton(
+    text: String,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .size(80.dp)
             .clip(CircleShape)
+            .background(KeypadButtonDark)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null // Remove ripple for cleaner look if desired
+                indication = null
             ) {
-                if (key == "DEL") onDeleteClick() else onDigitClick(key)
+                onClick()
             },
         contentAlignment = Alignment.Center
     ) {
-        if (key == "DEL") {
-            Icon(
-                imageVector = Icons.Default.Close, // Using 'X' icon as per visual
-                contentDescription = "Delete",
-                tint = TextActive,
-                modifier = Modifier.size(28.dp)
-            )
-        } else {
-            Text(
-                text = key,
-                color = TextActive,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Normal
-            )
-        }
+        Text(
+            text = text,
+            color = TextActive,
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Normal
+        )
     }
 }
