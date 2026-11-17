@@ -1,7 +1,8 @@
-package com.example.timerwidget
+package com.minimal.timerwidget
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -23,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -31,7 +34,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
-import com.example.timerwidget.data.TimerRepository
+import com.minimal.timerwidget.data.TimerRepository
 import kotlinx.coroutines.launch
 
 // --- Design System Colors (From Figma) ---
@@ -43,6 +46,17 @@ val TextInactive = Color(0xFFFEF7FF).copy(alpha = 0.70f)
 val SurfaceWhite = Color(0xFFFEF7FF)
 
 class MainActivity : ComponentActivity() {
+
+    private fun pinWidget(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val myProvider = ComponentName(context, TimerWidgetProvider::class.java)
+            if (appWidgetManager.isRequestPinAppWidgetSupported) {
+                appWidgetManager.requestPinAppWidget(myProvider, null, null)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -65,31 +79,39 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                // Check if widget is added to home screen
                 val widgetManager = AppWidgetManager.getInstance(this)
                 val widgetIds = widgetManager.getAppWidgetIds(
                     ComponentName(this, TimerWidgetProvider::class.java)
                 )
                 val hasWidget = widgetIds.isNotEmpty()
+                var showAddDialog by rememberSaveable { mutableStateOf(!hasWidget) }
 
-                if (hasWidget) {
+                if (showAddDialog) {
+                    AddWidgetDialog(
+                        onPinWidget = {
+                            pinWidget(this)
+                        },
+                        onOpenInApp = {
+                            showAddDialog = false
+                        }
+                    )
+                } else {
                     TimerEditorScreen(
+                        hasWidget = hasWidget,
+                        onPinWidget = { pinWidget(this) },
                         onTimerStart = { seconds ->
                             lifecycleScope.launch {
                                 val newTimerId = repository.addTimer(seconds)
-                                // Start timer immediately upon pressing Play
                                 val startIntent = Intent(this@MainActivity, TimerService::class.java).apply {
                                     action = TimerService.ACTION_START
                                     putExtra(TimerService.EXTRA_TIMER_ID, newTimerId)
                                 }
                                 startForegroundService(startIntent)
-                                finish()
+                                if (hasWidget) {
+                                    finish()
+                                }
                             }
                         },
-                        onClose = { finish() }
-                    )
-                } else {
-                    AddWidgetDialog(
                         onClose = { finish() }
                     )
                 }
@@ -99,7 +121,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AddWidgetDialog(onClose: () -> Unit) {
+fun AddWidgetDialog(
+    onPinWidget: () -> Unit,
+    onOpenInApp: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -108,9 +133,9 @@ fun AddWidgetDialog(onClose: () -> Unit) {
     ) {
         Card(
             modifier = Modifier
-                .padding(32.dp)
+                .padding(24.dp)
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
                 containerColor = SurfaceDark
             )
@@ -118,99 +143,84 @@ fun AddWidgetDialog(onClose: () -> Unit) {
             Column(
                 modifier = Modifier.padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(18.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Title
                 Text(
-                    text = "Add Widget First",
-                    fontSize = 22.sp,
+                    text = "Timer Widget",
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Medium,
                     color = TextActive
                 )
 
                 // Description
                 Text(
-                    text = "This is a widget-first app. Please add the Timer Widget to your home screen before creating custom timers.",
+                    text = "A minimalist dot-matrix countdown timer built for your home screen and day-to-day focus.",
                     fontSize = 14.sp,
                     color = TextInactive,
                     lineHeight = 20.sp
                 )
 
-                // Steps
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    StepItem(number = "1", text = "Long-press on your home screen")
-                    StepItem(number = "2", text = "Tap \"Widgets\"")
-                    StepItem(number = "3", text = "Find and select \"Timer Widget\"")
-                    StepItem(number = "4", text = "Place it on your home screen")
-                }
-
                 Spacer(Modifier.height(4.dp))
 
-                // OK Button
+                // Pin Widget Button (1-Tap!)
                 Button(
-                    onClick = onClose,
+                    onClick = onPinWidget,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SurfaceWhite
+                    ),
+                    shape = RoundedCornerShape(25.dp)
+                ) {
+                    Text(
+                        text = "✨ Add Widget to Home Screen",
+                        color = BackgroundDark,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // In-App Timer Button
+                OutlinedButton(
+                    onClick = onOpenInApp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SurfaceWhite
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = TextActive
                     ),
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Text(
-                        text = "OK",
-                        color = BackgroundDark,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "Use In-App Timer",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
+
+                // Helpful subtitle
+                Text(
+                    text = "Or touch & hold your home screen > Widgets > Timer Widget",
+                    fontSize = 12.sp,
+                    color = TextInactive.copy(alpha = 0.6f),
+                    lineHeight = 16.sp
+                )
             }
         }
     }
 }
 
 @Composable
-fun StepItem(number: String, text: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(KeypadButtonDark),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = number,
-                color = TextActive,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Text(
-            text = text,
-            fontSize = 14.sp,
-            color = TextInactive,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
 fun TimerEditorScreen(
+    hasWidget: Boolean,
+    onPinWidget: () -> Unit,
     onTimerStart: (Int) -> Unit,
     onClose: () -> Unit
 ) {
     var input by rememberSaveable { mutableStateOf("") }
+    val haptic = LocalHapticFeedback.current
 
     // Convert input digits e.g. "123" -> 1m 23s -> 83 seconds
     val totalSeconds = remember(input) {
@@ -238,7 +248,8 @@ fun TimerEditorScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = "Timer",
@@ -247,6 +258,28 @@ fun TimerEditorScreen(
                 fontWeight = FontWeight.Normal,
                 color = TextInactive
             )
+
+            if (!hasWidget) {
+                Surface(
+                    onClick = onPinWidget,
+                    shape = RoundedCornerShape(16.dp),
+                    color = KeypadButtonDark
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("✨", fontSize = 12.sp)
+                        Text(
+                            "Pin Widget",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextActive
+                        )
+                    }
+                }
+            }
         }
 
         // --- 2. Time Display (00h 00m 00s) ---
@@ -316,6 +349,7 @@ fun TimerEditorScreen(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             if (input.isNotEmpty()) input = input.dropLast(1)
                         },
                     contentAlignment = Alignment.Center
@@ -351,6 +385,7 @@ fun TimerEditorScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onClose()
                             },
                         contentAlignment = Alignment.Center
@@ -375,6 +410,7 @@ fun TimerEditorScreen(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onTimerStart(totalSeconds)
                         },
                     contentAlignment = Alignment.Center
@@ -429,6 +465,7 @@ fun DigitButton(
     text: String,
     onClick: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .size(80.dp)
@@ -438,6 +475,7 @@ fun DigitButton(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             },
         contentAlignment = Alignment.Center

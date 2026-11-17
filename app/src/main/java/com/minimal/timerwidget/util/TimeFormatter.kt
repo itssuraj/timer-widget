@@ -1,4 +1,4 @@
-package com.example.timerwidget.util
+package com.minimal.timerwidget.util
 
 object TimeFormatter {
     fun format(seconds: Int): String {

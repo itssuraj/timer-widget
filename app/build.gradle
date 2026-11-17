@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.timerwidget'
+    namespace 'com.minimal.timerwidget'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.timerwidget"
+        applicationId "com.minimal.timerwidget"
         minSdk 28
         targetSdk 34
         versionCode 1

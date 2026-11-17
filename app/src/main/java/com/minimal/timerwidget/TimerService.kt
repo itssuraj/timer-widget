@@ -1,4 +1,4 @@
-package com.example.timerwidget
+package com.minimal.timerwidget
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -9,6 +9,8 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
@@ -17,9 +19,9 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
-import com.example.timerwidget.data.TimerRepository
-import com.example.timerwidget.model.TimerState
-import com.example.timerwidget.util.TimeFormatter
+import com.minimal.timerwidget.data.TimerRepository
+import com.minimal.timerwidget.model.TimerState
+import com.minimal.timerwidget.util.TimeFormatter
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 
@@ -28,6 +30,11 @@ class TimerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private lateinit var repository: TimerRepository
     private var timerJob: Job? = null
+    private var targetEndTimeMillis: Long = 0L
+    private var currentActiveTimerId: String? = null
+
+    private var activeRingtone: Ringtone? = null
+    private var activeVibrator: Vibrator? = null
 
     companion object {
         const val ACTION_START = "ACTION_START"
@@ -35,6 +42,7 @@ class TimerService : Service() {
         const val ACTION_RESUME = "ACTION_RESUME"
         const val ACTION_STOP = "ACTION_STOP"
         const val ACTION_RESET = "ACTION_RESET"
+        const val ACTION_ADD_MINUTE = "ACTION_ADD_MINUTE"
         const val EXTRA_TIMER_ID = "EXTRA_TIMER_ID"
         const val NOTIFICATION_ID = 1
         const val CHANNEL_ID = "TimerServiceChannel"
@@ -64,27 +72,29 @@ class TimerService : Service() {
                 val timerId = intent.getStringExtra(EXTRA_TIMER_ID)
                 if (timerId != null) resetTimer(timerId)
             }
+            ACTION_ADD_MINUTE -> {
+                val timerId = intent.getStringExtra(EXTRA_TIMER_ID)
+                if (timerId != null) addMinute(timerId)
+            }
         }
         return START_NOT_STICKY
     }
 
     private fun startTimer(timerId: String) {
-        // Cancel any existing job
         timerJob?.cancel()
-        
-        // Start Foreground Service immediately
-        startForeground(NOTIFICATION_ID, createNotification("Timer Running"))
+        currentActiveTimerId = timerId
+
+        startForeground(
+            NOTIFICATION_ID,
+            createNotification("Timer Running", timerId, isRunning = true)
+        )
 
         timerJob = serviceScope.launch {
-            // Fetch initial timer data
             val initialTimers = repository.timers.first()
             val currentTimer = initialTimers.find { it.id == timerId } ?: return@launch
 
-            // 1. Mark in repository as RUNNING (which also pauses any other timer)
             repository.updateTimerState(timerId, TimerState.RUNNING)
-
-            // 2. Exact wall-clock tracking using elapsedRealtime to prevent coroutine delay drift
-            val targetEndTimeMillis = SystemClock.elapsedRealtime() + (currentTimer.currentDurationSec * 1000L)
+            targetEndTimeMillis = SystemClock.elapsedRealtime() + (currentTimer.currentDurationSec * 1000L)
             var hasAlerted = currentTimer.currentDurationSec <= 0
 
             while (isActive) {
@@ -95,27 +105,46 @@ class TimerService : Service() {
                     (remainingMillis / 1000).toInt()
                 }
 
-                // Alert user when countdown completes
                 if (remainingSec <= 0 && !hasAlerted) {
                     hasAlerted = true
                     triggerCompletionAlert()
                 }
 
-                val newState = if (remainingSec < 0) TimerState.OVERRUN else TimerState.RUNNING
+                val isOverrun = remainingSec < 0
+                val newState = if (isOverrun) TimerState.OVERRUN else TimerState.RUNNING
                 repository.updateTimerState(timerId, newState, remainingSec)
 
-                // Update Widget UI and Notification
                 updateWidgetUI()
-                updateNotification(if (remainingSec < 0) "Timer ended (-${TimeFormatter.format(remainingSec)})" else "Remaining: ${TimeFormatter.format(remainingSec)}")
+                val text = if (isOverrun) {
+                    "Timer ended (-${TimeFormatter.format(remainingSec)})"
+                } else {
+                    "Remaining: ${TimeFormatter.format(remainingSec)}"
+                }
+                updateNotification(text, timerId, isOverrun = isOverrun, isRunning = !isOverrun)
 
-                // Sleep for ~1 second
                 delay(1000)
+            }
+        }
+    }
+
+    private fun addMinute(timerId: String) {
+        targetEndTimeMillis += 60_000L
+        stopAlert()
+        serviceScope.launch {
+            val timers = repository.timers.first()
+            val timer = timers.find { it.id == timerId }
+            if (timer != null) {
+                val newRemaining = timer.currentDurationSec + 60
+                val newState = if (newRemaining > 0) TimerState.RUNNING else TimerState.OVERRUN
+                repository.updateTimerState(timerId, newState, newRemaining)
+                updateWidgetUI()
             }
         }
     }
 
     private fun pauseTimer(timerId: String) {
         timerJob?.cancel()
+        stopAlert()
         serviceScope.launch {
             repository.updateTimerState(timerId, TimerState.PAUSED)
             updateWidgetUI()
@@ -126,6 +155,7 @@ class TimerService : Service() {
 
     private fun stopTimer(timerId: String) {
         timerJob?.cancel()
+        stopAlert()
         serviceScope.launch {
             val timers = repository.timers.first()
             val timer = timers.find { it.id == timerId }
@@ -140,6 +170,7 @@ class TimerService : Service() {
 
     private fun resetTimer(timerId: String) {
         timerJob?.cancel()
+        stopAlert()
         serviceScope.launch {
             val timers = repository.timers.first()
             val timer = timers.find { it.id == timerId }
@@ -154,12 +185,23 @@ class TimerService : Service() {
 
     private fun triggerCompletionAlert() {
         try {
-            // Sound
-            val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val ringtone = RingtoneManager.getRingtone(applicationContext, notificationUri)
-            ringtone?.play()
+            // 1. Audio Alarm using USAGE_ALARM stream
+            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            
+            val ringtone = RingtoneManager.getRingtone(applicationContext, alarmUri)?.apply {
+                audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    isLooping = true
+                }
+                play()
+            }
+            activeRingtone = ringtone
 
-            // Vibration
+            // 2. Repeating Vibration Pattern
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val manager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
                 manager?.defaultVibrator
@@ -167,12 +209,14 @@ class TimerService : Service() {
                 @Suppress("DEPRECATION")
                 getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             }
+            activeVibrator = vibrator
             vibrator?.let {
+                val pattern = longArrayOf(0, 800, 400, 800, 400)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    it.vibrate(VibrationEffect.createOneShot(600, VibrationEffect.DEFAULT_AMPLITUDE))
+                    it.vibrate(VibrationEffect.createWaveform(pattern, 0)) // 0 means loop
                 } else {
                     @Suppress("DEPRECATION")
-                    it.vibrate(600)
+                    it.vibrate(pattern, 0)
                 }
             }
         } catch (ignored: Exception) {
@@ -180,9 +224,27 @@ class TimerService : Service() {
         }
     }
 
-    private fun updateNotification(content: String) {
+    private fun stopAlert() {
+        try {
+            activeRingtone?.stop()
+            activeRingtone = null
+            activeVibrator?.cancel()
+            activeVibrator = null
+        } catch (ignored: Exception) {
+        }
+    }
+
+    private fun updateNotification(
+        content: String,
+        timerId: String? = null,
+        isOverrun: Boolean = false,
+        isRunning: Boolean = false
+    ) {
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(NOTIFICATION_ID, createNotification(content))
+        manager?.notify(
+            NOTIFICATION_ID,
+            createNotification(content, timerId, isOverrun = isOverrun, isRunning = isRunning)
+        )
     }
 
     private fun updateWidgetUI() {
@@ -198,31 +260,88 @@ class TimerService : Service() {
         }
     }
 
-    private fun createNotification(content: String): Notification {
+    private fun createNotification(
+        content: String,
+        timerId: String? = null,
+        isOverrun: Boolean = false,
+        isRunning: Boolean = false
+    ): Notification {
         val openIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Timer Widget")
             .setContentText(content)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_notification_timer)
             .setContentIntent(pendingIntent)
             .setOnlyAlertOnce(true)
             .setOngoing(true)
-            .build()
+            .setCategory(if (isOverrun) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_STOPWATCH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+        if (timerId != null) {
+            if (isOverrun) {
+                // Action: Stop Alarm
+                val stopIntent = Intent(this, TimerService::class.java).apply {
+                    action = ACTION_STOP
+                    putExtra(EXTRA_TIMER_ID, timerId)
+                }
+                val stopPending = PendingIntent.getForegroundService(
+                    this, 101, stopIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(R.drawable.ic_stop, "Stop", stopPending)
+            } else if (isRunning) {
+                // Action: Pause
+                val pauseIntent = Intent(this, TimerService::class.java).apply {
+                    action = ACTION_PAUSE
+                    putExtra(EXTRA_TIMER_ID, timerId)
+                }
+                val pausePending = PendingIntent.getForegroundService(
+                    this, 102, pauseIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(R.drawable.ic_stop, "Pause", pausePending)
+
+                // Action: +1 Min
+                val addMinIntent = Intent(this, TimerService::class.java).apply {
+                    action = ACTION_ADD_MINUTE
+                    putExtra(EXTRA_TIMER_ID, timerId)
+                }
+                val addMinPending = PendingIntent.getForegroundService(
+                    this, 103, addMinIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(R.drawable.ic_add, "+1m", addMinPending)
+
+                // Action: Reset
+                val resetIntent = Intent(this, TimerService::class.java).apply {
+                    action = ACTION_RESET
+                    putExtra(EXTRA_TIMER_ID, timerId)
+                }
+                val resetPending = PendingIntent.getForegroundService(
+                    this, 104, resetIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(R.drawable.ic_reset, "Reset", resetPending)
+            }
+        }
+
+        return builder.build()
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Timer Service",
+                "Timer Notifications",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Shows live running countdown timer status"
+                description = "Shows active timer status and controls"
+                setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
@@ -232,6 +351,7 @@ class TimerService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onDestroy() {
+        stopAlert()
         timerJob?.cancel()
         serviceScope.cancel()
         super.onDestroy()

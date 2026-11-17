@@ -1,4 +1,4 @@
-package com.example.timerwidget
+package com.minimal.timerwidget
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -8,10 +8,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
-import com.example.timerwidget.data.TimerRepository
-import com.example.timerwidget.model.TimerItem
-import com.example.timerwidget.model.TimerState
-import com.example.timerwidget.util.TimeFormatter
+import com.minimal.timerwidget.data.TimerRepository
+import com.minimal.timerwidget.model.TimerItem
+import com.minimal.timerwidget.model.TimerState
+import com.minimal.timerwidget.util.TimeFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

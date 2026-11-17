@@ -1,4 +1,4 @@
-package com.example.timerwidget.model
+package com.minimal.timerwidget.model
 data class TimerItem(
     val id: String,
     val originalDurationSec: Int,

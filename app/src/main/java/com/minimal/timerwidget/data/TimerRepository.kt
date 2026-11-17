@@ -1,4 +1,4 @@
-package com.example.timerwidget.data
+package com.minimal.timerwidget.data
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
@@ -7,9 +7,9 @@ import android.content.Intent
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.example.timerwidget.TimerWidgetProvider
-import com.example.timerwidget.model.TimerItem
-import com.example.timerwidget.model.TimerState
+import com.minimal.timerwidget.TimerWidgetProvider
+import com.minimal.timerwidget.model.TimerItem
+import com.minimal.timerwidget.model.TimerState
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
